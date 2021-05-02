@@ -3,11 +3,11 @@
 #include <SDL_video.h>
 #include <SDL_render.h>
 
-namespace omm::sdl 
+namespace omm::sdl
 {
-    void window_delete::operator()(SDL_Window* p) const noexcept 
+    void window_delete::operator()(SDL_Window* p) const noexcept
     {
-        if(p != nullptr) 
+        if (p != nullptr)
             SDL_DestroyWindow(p);
     }
 
@@ -15,5 +15,16 @@ namespace omm::sdl
     {
         if (p != nullptr)
             SDL_DestroyRenderer(p);
+    }
+
+    void texture_delete::operator()(SDL_Texture* p) const noexcept
+    {
+        if (p != nullptr)
+            SDL_DestroyTexture(p);
+    }
+
+    void surface_delete::operator()(SDL_Surface* p) const noexcept
+    {
+        SDL_FreeSurface(p);
     }
 }
