@@ -11,8 +11,10 @@
 #include <stdexcept>
 #include <fstream>
 #include <filesystem>
+#include <optional>
 
 #include <fmt/format.h>
+
 
 namespace omm
 {
@@ -106,10 +108,86 @@ namespace omm
 
 			return raw_images;
 		}
+
+		void dump_strings(std::filesystem::path const& mm3_file_path, std::optional<std::filesystem::path> path_arg)
+		{
+			std::filesystem::path const output_path = path_arg.value_or("strings.csv");
+
+			std::ofstream output_file(output_path);
+			if (!output_file)
+				throw std::runtime_error(fmt::format("Could not open '{}'", output_path.string()));
+
+			output_file << "File;Index;Value\n";
+
+			for (auto const& directory_entry : std::filesystem::directory_iterator(mm3_file_path))
+			{
+				if (!directory_entry.is_regular_file())
+					continue;
+
+				std::filesystem::path const& file_path = directory_entry.path();
+
+				if (file_path.extension() != ".bin")
+					continue;
+
+				std::filesystem::path const filename = file_path.filename();
+				int index = 0;
+
+				std::ifstream string_file(file_path);
+				if (!string_file)
+				{
+					SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Could not open string file '%s'", file_path.string().c_str());
+					continue;
+				}
+
+				std::string line;
+				while (std::getline(string_file, line, '\0'))
+				{
+					for (size_t endline_pos = line.find('\n'); endline_pos != std::string::npos; endline_pos = line.find('\n'))
+						line.replace(endline_pos, 1, " / ");
+
+					if (line.empty())
+						continue;
+
+					output_file << filename << ";" << index++ << ";\"" << line << "\"\n";
+				}
+			}
+		}
+
+		void handle_args(std::filesystem::path const& mm3_file_path, int argc, char** argv)
+		{
+			(void)argc;
+
+			++argv; // Ignore executable
+
+			while (char const* arg = *argv)
+			{
+				if (arg[0] != '-')
+					throw std::runtime_error(fmt::format("Invalid program argument '{}'", arg));
+
+				if (strcmp(arg, "--dump-strings") == 0)
+				{
+					char const* next_arg = argv[1];
+					if (next_arg == nullptr || next_arg[0] == '-')
+					{
+						dump_strings(mm3_file_path, std::nullopt);
+					}
+					else
+					{
+						dump_strings(mm3_file_path, next_arg);
+						++argv;
+					}
+				}
+
+				++argv;
+			}
+		}
 	}
 
 	int program::initialize_window(int argc, char** argv)
 	{
+		(void)argc;
+		(void)argv;
+
 		window.reset(SDL_CreateWindow("OpenMM3", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1920, 1080, SDL_WINDOW_BORDERLESS));
 		if (window == nullptr)
 		{
@@ -144,6 +222,8 @@ namespace omm
 				mm3_files = value;
 			}
 		});
+
+		handle_args(mm3_file_path, argc, argv);
 
 		auto const raw_images = get_raw_images(mm3_file_path, renderer.get());
 		size_t image_index = 0;
